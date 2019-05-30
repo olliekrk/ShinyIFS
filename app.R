@@ -192,13 +192,13 @@ ui <- fluidPage(
                              step = 0.01),
                  numericInput("iterations",
                               label = "Number of interations:",
-                              min = 1,
-                              value = 500,
+                              min = 0,
+                              value = 1000,
                               step = 100),
                  numericInput("points",
                               label = "Number of points:",
                               min = 1,
-                              value = 1,
+                              value = 10,
                               step = 1)
     ),
     
@@ -251,11 +251,14 @@ server <- function(input, output) {
            {})
     
     results <- ifs_generate(chosen_preset,input$iterations, input$points)
-    xs <- as.vector(results[,"x"])
-    ys <- as.vector(results[,"y"])
+
+    n_colors <- input$points +1
+    rbPalette <- colorRampPalette(c('red','blue'))
+    results$color <- rbPalette(n_colors)[as.numeric(cut(results$y, breaks = n_colors))]
+    
     output$distPlot<- renderPlot({
-      plot(xs,
-           ys,
+      plot(results$x,
+           results$y,
            asp = 1,
            axes = FALSE,
            type = "p",
@@ -264,7 +267,7 @@ server <- function(input, output) {
            pch=20,
            cex=0.1,
            bty="n",
-           col=heat.colors(input$points))}, height = 1000, width = 1000)
+           col=results$color)}, height = 1000, width = 1000)
   })
 }
 
