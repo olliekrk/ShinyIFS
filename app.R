@@ -97,8 +97,18 @@ spiral_preset <- function(xy){
   as.matrix(switch(chosen_i,f1(xy),f2(xy),f3(xy)))
 }
 
-custom_preset <- function(xy, a, b, c, d, e, f){
-  f1 <- function(xy) matrix(c(a,b,c,d), nrow = 2) %*% xy + c(e,f)
+custom_preset <- function(xy, params){
+  probs <- params[,'probability']
+  
+  i <- sample(1:nrow(params), 1, prob=probs)
+  
+  f1 <- function(xy) 
+    matrix(c(
+      params[i,1],
+      params[i,2],
+      params[i,3],
+      params[i,4]), nrow = 2) %*% xy + c(params[i,5], params[i,6])
+  
   as.matrix(f1(xy))
 }
 
@@ -190,6 +200,12 @@ ui <- fluidPage(
                              max = 1,
                              value = -.2,
                              step = 0.01),
+                 sliderInput("probability",
+                             "Probability:",
+                             min = 0,
+                             max = 1,
+                             value = 0,
+                             step = 0.01),
                  numericInput("iterations",
                               label = "Number of interations:",
                               min = 0,
@@ -199,7 +215,11 @@ ui <- fluidPage(
                               label = "Number of points:",
                               min = 1,
                               value = 10,
-                              step = 1)
+                              step = 1),
+                 
+                 actionButton("addFunction", "Add function to the set"),
+                 actionButton("clearFunction", "Clear functions set"),
+                 tableOutput("functionsTable")
     ),
     
     # Show a plot of the generated fractal
@@ -213,6 +233,7 @@ ui <- fluidPage(
       ),
       
       plotOutput("distPlot")
+      
     )
   )
 )
@@ -237,8 +258,24 @@ server <- function(input, output) {
     presetInput()
   })
   
+  observeEvent(input$addFunction, {
+    new_params <- c(input$a,input$b,input$c,input$d,input$e,input$f,input$probability)
+    df <- read.csv('functions.csv')
+    df <- rbind (df, new_params)
+    colnames(df) <- c("a", "b", "c", "d", "e", "f", "probability")
+    write.csv(df, file = 'functions.csv',row.names=FALSE)
+    output$functionsTable <- renderTable({df})
+  })
+  
+  observeEvent(input$clearFunction,{
+    df <- data.frame(matrix(ncol = 7, nrow=0))
+    colnames(df) <- c("a", "b", "c", "d", "e", "f", "probability")
+    write.csv(df, file = 'functions.csv',row.names=FALSE)
+    output$functionsTable <- renderTable({df})
+  })
+  
   observeEvent(input$generate, {
-    chosen_preset <- function(xy) {custom_preset(xy,input$a,input$b,input$c,input$d,input$e,input$f)}
+    chosen_preset <- NA
     
     switch(input$preset,
            "Heighway's Dragon"={chosen_preset <- heighway_dragon_preset},
@@ -248,10 +285,13 @@ server <- function(input, output) {
            "Tree"={chosen_preset <- tree_preset},
            "Mandelbrot-like"={chosen_preset<-mandelbrot_preset},
            "Spiral" = {chosen_preset<-spiral_preset},
-           {})
+           {
+             params <- read.csv('functions.csv')
+             chosen_preset <- function(xy) custom_preset(xy, params)
+             })
     
     results <- ifs_generate(chosen_preset,input$iterations, input$points)
-
+    
     n_colors <- input$points +1
     rbPalette <- colorRampPalette(c('red','blue'))
     results$color <- rbPalette(n_colors)[as.numeric(cut(results$y, breaks = n_colors))]
